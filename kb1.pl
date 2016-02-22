@@ -1,5 +1,3 @@
-writeln(A) :- write(A), write('\n').
-
 parse(TokenList, AST) :- phrase(prog(AST), TokenList).
 evaluate(AST, Number) :- empty_assoc(Min), ev(AST, Number, Min, _).
 
