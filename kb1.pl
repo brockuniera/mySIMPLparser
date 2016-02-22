@@ -2,24 +2,29 @@ pphrase(A, B, C) :- phrase(A, B, C), format('~s~n', [B]).
 
 prog --> retStatement, [.].
 prog --> declaration, [';'], prog.
-%prog --> assignment, [';'], prog.
+prog --> assignment, [';'], prog.
+assignment --> id, [':='], base.
 declaration --> ['var'], id.
 retStatement --> [return], base.
 base --> id.
 base --> num.
-%base --> ['('], expr, [')'].
+base --> ['('], expr, [')'].
 
 % TODO Handle left recursion
-expr --> term.
-%expr --> term.
-term --> factor.
+expr(E) --> term(T), addOp(Op), left_assoc(E, T, Op).
+left_assoc(n_expression(Op, T, T1), T, Op) --> term(T1).
+left_assoc(E, T, Op) --> term(T1), addOp(Op), left_assoc(E, n_expression(Op, T, T1), Op).
+%(- (- 1 2) 3) === ((1 - 2) - 3)
+
+term(n_num(Y)) --> [X], {atom_number(X, Y)}.
+
 %term --> factor.
-%
 factor --> base.
-addOp --> [+].
-addOp --> [-].
-mulOp --> [*].
-mulOp --> [/].
+
+addOp(plus) --> [+].
+addOp(minus) --> [-].
+mulOp(times) --> [*].
+mulOp(divide) --> [/].
 
 
 % < id > definition
