@@ -1,12 +1,10 @@
-pphrase(A, B, C) :- phrase(A, B, C), format('~s~n', [B]).
-
-prog --> retStatement, [.].
-prog --> declaration, [';'], prog.
-prog --> assignment, [';'], prog.
-assignment --> id, [':='], base.
-declaration --> ['var'], id.
-retStatement --> [return], base.
-base(base(Id)) --> id(Id).
+prog(prog(R)) --> retStatement(R), [.].
+prog(prog(D, P)) --> declaration(D), [';'], prog(P).
+prog(prog(A, P)) --> assignment(A), [';'], prog(P).
+declaration(declr(I)) --> ['var'], id(I).
+assignment(assn(I, B)) --> id(I), [':='], base(B).
+retStatement(return(B)) --> [return], base(B).
+base(base(I)) --> id(I).
 base(base(N)) --> num(N).
 base(base(E)) --> ['('], expr(E), [')'].
 
@@ -28,7 +26,6 @@ addOp(minus) --> [-].
 mulOp(times) --> [*].
 mulOp(divide) --> [/].
 
-
 % < id > definition
 id(id(I)) -->
     [I],
@@ -40,4 +37,4 @@ alphaword([]).
 alphaword([H|T]) :- char_type(H, alpha), alphaword(T).
 
 % < number > definition
-num(num(N)) --> [X], {atom_number(X, N)}.
+num(num(X)) --> [X], {number(X)}.
