@@ -3,7 +3,9 @@ writeln(A) :- write(A), write('\n').
 parse(TokenList, AST) :- phrase(prog(AST), TokenList).
 evaluate(AST, Number) :- empty_assoc(Min), ev(AST, Number, Min, _).
 
-% Just eat progs, returns, bases
+interpret(TokenList, Number) :- parse(TokenList, AST), evaluate(AST, Number).
+
+% Just eat progs, returns, bases, etc
 ev(prog(return(A)), N, Min, Mout) :- ev(A, N, Min, Mout).
 ev(prog(A, B), N, Min, Mout) :- ev(A, N, Min, M1), ev(B, N, M1, Mout).
 ev(base(I), N, Min, Mout) :- ev(I, N, Min, Mout).
@@ -12,24 +14,28 @@ ev(term(T), N, Min, Mout) :- ev(T, N, Min, Mout).
 ev(factor(T), N, Min, Mout) :- ev(T, N, Min, Mout).
 
 % Terms
-ev(term(_, F, F1), N, Min, Mout) :- ev(F, N, Min, M1), ev(F1, N, M1, Mout).
+ev(term(times, T, T1), N, Min, Mout) :- ev(T, N1, Min, M1), ev(T1, N2, M1, Mout), N is N1 * N2.
+ev(term(divide, T, T1), N, Min, Mout) :- ev(T, N1, Min, M1), ev(T1, N2, M1, Mout), N is N1 / N2.
 
 % Expressions
-ev(expr(_, T, T1), N, Min, Mout) :- ev(T, N, Min, M1), ev(T1, N, M1, Mout).
+ev(expr(plus , T, T1), N, Min, Mout) :- ev(T, N1, Min, M1), ev(T1, N2, M1, Mout), N is N1 + N2.
+ev(expr(minus, T, T1), N, Min, Mout) :- ev(T, N1, Min, M1), ev(T1, N2, M1, Mout), N is N1 - N2.
 
 % Numbers, ops allowed.
-ev(num(_), _, M, M).
-ev(addOp(_), _, M, M).
-ev(mulOp(_), _, M, M).
+ev(num(N), N, M, M).
+ev(plus(_), _, M, M).
+ev(minus(_), _, M, M).
+ev(times(_), _, M, M).
+ev(divide(_), _, M, M).
 
 % Declarations. id cannot have existed before, and now it does. Mout != Min.
-ev(declr(id(I)), N, Min, Mout) :- \+ get_assoc(I, Min, _), put_assoc(I, Min, unassigned, Mout).
+ev(declr(id(I)), _, Min, Mout) :- \+ get_assoc(I, Min, _), put_assoc(I, Min, unassigned, Mout).
 
 % Assignments are valid when LHS id is in Min, and base is valid. Mout != Min.
-ev(assn(id(I), base(B)), N, Min, Mout) :- ev(B, N, Min, _), get_assoc(I, Min, _), put_assoc(I, Min, assigned, Mout).
+ev(assn(id(I), base(B)), _, Min, Mout) :- ev(B, N, Min, _), get_assoc(I, Min, _), put_assoc(I, Min, assigned(N), Mout).
 
 % Reading an id. The id has to exist and be assigned in Min.
-ev(id(I), N, Min, _) :- get_assoc(I, Min, assigned).
+ev(id(I), N, Min, _) :- get_assoc(I, Min, assigned(N)).
 
 
 prog(prog(R)) --> retStatement(R), [.].
