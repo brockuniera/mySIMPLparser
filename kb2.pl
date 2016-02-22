@@ -1,4 +1,3 @@
-%base --> [X], {checkid(X)}.
 base --> [X], {id(X)}.
 id(X) :-
     \+ member(X, [return, 'var']),
