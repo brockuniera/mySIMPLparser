@@ -8,9 +8,19 @@ ev(prog(return(A)), N, Min, Mout) :- ev(A, N, Min, Mout).
 ev(prog(A, B), N, Min, Mout) :- ev(A, N, Min, M1), ev(B, N, M1, Mout).
 ev(base(I), N, Min, Mout) :- ev(I, N, Min, Mout).
 ev(expr(T), N, Min, Mout) :- ev(T, N, Min, Mout).
+ev(term(T), N, Min, Mout) :- ev(T, N, Min, Mout).
+ev(factor(T), N, Min, Mout) :- ev(T, N, Min, Mout).
 
-% Numbers allowed.
+% Terms
+ev(term(_, F, F1), N, Min, Mout) :- ev(F, N, Min, M1), ev(F1, N, M1, Mout).
+
+% Expressions
+ev(expr(_, T, T1), N, Min, Mout) :- ev(T, N, Min, M1), ev(T1, N, M1, Mout).
+
+% Numbers, ops allowed.
 ev(num(_), _, M, M).
+ev(addOp(_), _, M, M).
+ev(mulOp(_), _, M, M).
 
 % Declarations. id cannot have existed before, and now it does. Mout != Min.
 ev(declr(id(I)), N, Min, Mout) :- \+ get_assoc(I, Min, _), put_assoc(I, Min, unassigned, Mout).
