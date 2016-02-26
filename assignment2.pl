@@ -1,7 +1,14 @@
 parse(TokenList, AST) :- phrase(prog(AST), TokenList).
 evaluate(AST, Number) :- empty_assoc(Min), ev(AST, Number, Min, _).
 
+% for assignment2tests.pl
 interpret(TokenList, Number) :- parse(TokenList, AST), evaluate(AST, Number).
+
+% short versions of parse/2 and evaluate/2
+p(T, A) :- parse(T, A).
+i(T, N) :- interpret(T, N).
+
+%
 
 % Just eat progs, returns, bases, etc
 ev(prog(return(A)), N, Min, Mout) :- ev(A, N, Min, Mout).
