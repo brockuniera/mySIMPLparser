@@ -21,10 +21,6 @@ ev(expr(minus, T, T1), N, Min, Mout) :- ev(T, N1, Min, M1), ev(T1, N2, M1, Mout)
 
 % Numbers, ops allowed.
 ev(num(N), N, M, M).
-ev(plus(_), _, M, M).
-ev(minus(_), _, M, M).
-ev(times(_), _, M, M).
-ev(divide(_), _, M, M).
 
 % Declarations. id cannot have existed before, and now it does. Mout != Min.
 ev(declr(id(I)), _, Min, Mout) :- \+ get_assoc(I, Min, _), put_assoc(I, Min, unassigned, Mout).
@@ -33,7 +29,8 @@ ev(declr(id(I)), _, Min, Mout) :- \+ get_assoc(I, Min, _), put_assoc(I, Min, una
 ev(assn(id(I), base(B)), _, Min, Mout) :- ev(B, N, Min, _), get_assoc(I, Min, _), put_assoc(I, Min, assigned(N), Mout).
 
 % Reading an id. The id has to exist and be assigned in Min.
-ev(id(I), N, Min, _) :- get_assoc(I, Min, assigned(N)).
+ev(id(I), N, Min, Min) :- get_assoc(I, Min, assigned(N)).
+%ev(id(I), N, Min, Min) :- get_assoc(I, Min, _), writef('unassigned variable', ''), !, fail.
 
 
 prog(prog(R)) --> retStatement(R), [.].
@@ -41,6 +38,7 @@ prog(prog(D, P)) --> declaration(D), [';'], prog(P).
 prog(prog(A, P)) --> assignment(A), [';'], prog(P).
 declaration(declr(I)) --> ['var'], id(I).
 assignment(assn(I, B)) --> id(I), [':='], base(B).
+%assignment(assn(I, B)) --> id(I), ['='], { writef('you can''t use = retard',_), !, fail}, base(B).
 retStatement(return(B)) --> [return], base(B).
 base(base(I)) --> id(I).
 base(base(N)) --> num(N).
@@ -70,4 +68,4 @@ alphaword([]).
 alphaword([H|T]) :- char_type(H, alpha), alphaword(T).
 
 % < number > definition
-num(num(X)) --> [X], {number(X)}.
+num(num(N)) --> [X], {catch((atom_codes(X, S), number_codes(N, S)), _, (fail))}.
