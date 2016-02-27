@@ -8,9 +8,14 @@ interpret(TokenList, Number) :- parse(TokenList, AST), evaluate(AST, Number).
 p(T, A) :- parse(T, A).
 i(T, N) :- interpret(T, N).
 
-%
+% ev/4
+% +AST  A valid abstract syntax tree from parse.
+% -N    A number, the resulting value from evaluating this piece of the AST.
+%       ie return(num(3)) will have N is 3.
+% +Min  The scope before evaluating AST.
+% -Mout The scope after evaluating AST.
 
-% Just eat progs, returns, bases, etc
+% Just eat progs, returns, bases, etc. We want what's inside.
 ev(prog(return(A)), N, Min, Mout) :- ev(A, N, Min, Mout).
 ev(prog(A, B), N, Min, Mout) :- ev(A, N, Min, M1), ev(B, N, M1, Mout).
 ev(base(I), N, Min, Mout) :- ev(I, N, Min, Mout).
@@ -37,19 +42,41 @@ ev(assn(id(I), base(B)), _, Min, Mout) :- ev(B, N, Min, _), get_assoc(I, Min, _)
 
 % Reading an id. The id has to exist and be assigned in Min.
 ev(id(I), N, Min, Min) :- get_assoc(I, Min, assigned(N)).
-%ev(id(I), N, Min, Min) :- get_assoc(I, Min, _), writef('unassigned variable', ''), !, fail.
 
+%
+% Parser
+%
 
 prog(prog(R)) --> retStatement(R), [.].
-prog(prog(D, P)) --> declaration(D), [';'], prog(P).
-prog(prog(A, P)) --> assignment(A), [';'], prog(P).
+prog(prog(F, P)) --> funcDecl(F), [';'], prog(P).
+prog(prog(S, P)) --> statement(S), [';'], prog(P).
+
+funcDecl(func(Iname, Iarg, Prog)) --> [function], id(Iname), ['('], id(Iarg), [')'], ['{'], prog(Prog), ['}'].
+
+retStatement(return(B)) --> [return], base(B).
+
+statement(stmt(S)) --> declaration(S) ; assignment(S) ; conditional(S) ; loop(S).
+
 declaration(declr(I)) --> ['var'], id(I).
 assignment(assn(I, B)) --> id(I), [':='], base(B).
-%assignment(assn(I, B)) --> id(I), ['='], { writef('you can''t use = retard',_), !, fail}, base(B).
-retStatement(return(B)) --> [return], base(B).
+
+loop(while(Cond, S)) -->
+    [while], ['('], condition(Cond), [')'], [do], statementSeq(S), [done].
+
+conditional(if(Cond, St, Sf)) -->
+    [if], ['('], condition(Cond), [')'], [then], statementSeq(St), [else], statementSeq(Sf), [endif].
+
+statementSeq(stmntseq(S)) --> statement(S), [.].
+statementSeq(stmntseq(S, Snext)) --> statement(S), [';'], statementSeq(Snext).
+
+condition(cond(LHS, Op, RHS)) --> base(LHS), comp(Op), base(RHS).
+
 base(base(I)) --> id(I).
 base(base(N)) --> num(N).
 base(base(E)) --> ['('], expr(E), [')'].
+base(base(F)) --> funcCall(F).
+
+funcCall(fcall(I, B)) --> id(I), ['('], base(B), [')'].
 
 expr(expr(T)) --> term(T).
 expr(E) --> term(T), addOp(Op), left_assoc(E, T, Op).
@@ -69,8 +96,15 @@ addOp(minus) --> [-].
 mulOp(times) --> [*].
 mulOp(divide) --> [/].
 
+comp(eq) --> ['=='].
+comp(lt) --> ['<'].
+comp(gt) --> ['>'].
+comp(le) --> ['<='].
+comp(ge) --> ['>='].
+comp(ne) --> ['!='].
+
 % < id > definition
-id(id(I)) --> [I], { \+ member(I, [return, 'var']), atom_codes(I, S), alphaword(S) }.
+id(id(I)) --> [I], { \+ member(I, [return, 'var', function]), atom_codes(I, S), alphaword(S) }.
 alphaword([]).
 alphaword([H|T]) :- char_type(H, alpha), alphaword(T).
 
