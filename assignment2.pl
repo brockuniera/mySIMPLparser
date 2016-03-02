@@ -1,5 +1,4 @@
-parse(TokenList, AST) :- phrase(prog(AST), TokenList).
-evaluate(AST, Number) :- empty_assoc(Min), ev(AST, Number, Min, _).
+
 
 % for assignment2tests.pl
 interpret(TokenList, Number) :- parse(TokenList, AST), evaluate(AST, Number).
@@ -12,40 +11,86 @@ i(T, N) :- interpret(T, N).
 % +AST  A valid abstract syntax tree from parse.
 % -N    A number, the resulting value from evaluating this piece of the AST.
 %       ie return(num(3)) will have N is 3.
-% +Min  The scope before evaluating AST.
-% -Mout The scope after evaluating AST.
+% +Ein  The scope before evaluating AST.
+% -Eout The scope after evaluating AST.
+
+evaluate(AST, Number) :- ev(AST, Number, scope(_{}, _{}, _{}, nil), _), number(Number).
 
 % Just eat progs, returns, bases, etc. We want what's inside.
-ev(prog(return(A)), N, Min, Mout) :- ev(A, N, Min, Mout).
-ev(prog(A, B), N, Min, Mout) :- ev(A, N, Min, M1), ev(B, N, M1, Mout).
-ev(base(I), N, Min, Mout) :- ev(I, N, Min, Mout).
-ev(expr(T), N, Min, Mout) :- ev(T, N, Min, Mout).
-ev(term(T), N, Min, Mout) :- ev(T, N, Min, Mout).
-ev(factor(T), N, Min, Mout) :- ev(T, N, Min, Mout).
+ev(prog(return(A)), N, Ein, Eout) :- ev(A, N, Ein, Eout).
+ev(prog(A, B), N, Ein, Eout) :- ev(A, N, Ein, M1), ev(B, N, M1, Eout).
+ev(base(I), N, Ein, Eout) :- ev(I, N, Ein, Eout).
+ev(expr(T), N, Ein, Eout) :- ev(T, N, Ein, Eout).
+ev(term(T), N, Ein, Eout) :- ev(T, N, Ein, Eout).
+ev(factor(T), N, Ein, Eout) :- ev(T, N, Ein, Eout).
+
+% Function declaration. Scopeout will contain an extra definition for function
+ev(func(id(Iname), id(Iarg), Prog), _, Scopein, Scopeout) :-
+    \+ get_fscope(Iname, Scopein, _), % Iname isn't defined in our fscope yet
+    put_fscope(Iname, Scopein, tup(Scopein, Iarg, Prog), Scopeout).
+
+ev(fcall(Iname, B), N, Scopein, Scopeout) :-
+    ev(B, N1, Scopein, _), % Base can't change scope
+    scope(_, Fscope, _, _) = Scopein, % Look up our function...
+    tup(Argid, Staticscope, Progrn) = Fscope.Iname, % Get information from it
+
+    % Evaulate Progrn, storing result in N, and with a new scope
+    ev(Progrn, N, scope(_{}.put(Argid, N1), _{}, Staticscope.put(_{}.put(Argid, N1)), Scopein), scope(_, _, _, Scopeout)).
+
 
 % Terms
-ev(term(times, T, T1), N, Min, Mout) :- ev(T, N1, Min, M1), ev(T1, N2, M1, Mout), N is N1 * N2.
-ev(term(divide, T, T1), N, Min, Mout) :- ev(T, N1, Min, M1), ev(T1, N2, M1, Mout), N is N1 / N2.
+ev(term(times, T, T1), N, Ein, Eout) :- ev(T, N1, Ein, M1), ev(T1, N2, M1, Eout), N is N1 * N2.
+ev(term(divide, T, T1), N, Ein, Eout) :- ev(T, N1, Ein, M1), ev(T1, N2, M1, Eout), N is N1 / N2.
 
 % Expressions
-ev(expr(plus , T, T1), N, Min, Mout) :- ev(T, N1, Min, M1), ev(T1, N2, M1, Mout), N is N1 + N2.
-ev(expr(minus, T, T1), N, Min, Mout) :- ev(T, N1, Min, M1), ev(T1, N2, M1, Mout), N is N1 - N2.
+ev(expr(plus , T, T1), N, Ein, Eout) :- ev(T, N1, Ein, M1), ev(T1, N2, M1, Eout), N is N1 + N2.
+ev(expr(minus, T, T1), N, Ein, Eout) :- ev(T, N1, Ein, M1), ev(T1, N2, M1, Eout), N is N1 - N2.
 
-% Numbers, ops allowed.
+% Numbers allowed.
 ev(num(N), N, M, M).
 
-% Declarations. id cannot have existed before, and now it does. Mout != Min.
-ev(declr(id(I)), _, Min, Mout) :- \+ get_assoc(I, Min, _), put_assoc(I, Min, unassigned, Mout).
+% Declarations. id cannot have existed before, and now it does. Eout != Ein.
+ev(declr(id(I)), _, Ein, Eout) :- \+ get_vscope(I, Ein, _), put_vscope(I, Ein, unassigned, Eout).
 
-% Assignments are valid when LHS id is in Min, and base is valid. Mout != Min.
-ev(assn(id(I), base(B)), _, Min, Mout) :- ev(B, N, Min, _), get_assoc(I, Min, _), put_assoc(I, Min, assigned(N), Mout).
+% Assignments are valid when LHS id is in Ein, and base is valid. Eout != Ein.
+ev(assn(id(I), base(B)), _, Ein, Eout) :- ev(B, N, Ein, _), get_vscope(I, Ein, _), put_vscope(I, Ein, assigned(N), Eout).
 
-% Reading an id. The id has to exist and be assigned in Min.
-ev(id(I), N, Min, Min) :- get_assoc(I, Min, assigned(N)).
+% Reading an id. The id has to exist and be assigned in Ein.
+ev(id(I), N, Ein, Ein) :- get_vscope(I, Ein, assigned(N)).
+
+get_fscope(Key, Scopein, Value) :-
+    scope(_, Fscope, Staticscope, Parent) = Scopein,
+    Staticscope.get(Key),
+    ((Fscope.get(Key) = Value, !) ; get_fscope(Key, Parent, Value)).
+
+get_vscope(Key, Scopein, Value) :-
+    scope(Vscope, _, Staticscope, Parent) = Scopein,
+    Staticscope.get(Key),
+    ((Vscope.get(Key) = Value, !) ; get_fscope(Key, Parent, Value)).
+
+put_fscope(Key, scope(Vscope, Fscope, S, P), Value, scope(Vscope.put(Key, Value), Fscope, S, P)).
+put_vscope(Key, scope(Vscope, Fscope, S, P), Value, scope(Vscope, Fscope.put(Key, Value), S, P)).
+
+% scope(Vscope, Fscope, StaticScope, Parent).
+%
+% Vscope and Fscope are just dicts, representing their respective namespaces.
+% StaticScope is all the variables we've seen up to this point, in the current scope.
+% TODO It should also contain func defs
+%
+% When a function is declared, StaticScope is saved with the function.
+% scope({}, {f:tup(Argid, StaticScope, Progrn)}, StaticScope, Parent).
+%
+% When a function is called, a new scope is created:
+% scope({Argid:<callvalue>}, {}, StaticScope.put(_{Argid:<callvalue>}), Parent).
+%
+% The scope of the function is the saved StaticScope UNION {Argid:<callvalue>}
+%
 
 %
 % Parser
 %
+
+parse(TokenList, AST) :- phrase(prog(AST), TokenList).
 
 prog(prog(R)) --> retStatement(R), [.].
 prog(prog(F, P)) --> funcDecl(F), [';'], prog(P).
