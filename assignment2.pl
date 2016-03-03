@@ -14,7 +14,8 @@ i(T, N) :- interpret(T, N).
 % +Ein  The scope before evaluating AST.
 % -Eout The scope after evaluating AST.
 
-evaluate(AST, Number) :- ev(AST, Number, scope(_{}, _{}, _{}, nil), _), number(Number).
+evaluate(AST, Number) :- e2(AST, Number, _).
+e2(AST, Number, S)    :- S = scope(_{}, _{}, _{}, []), ev(AST, Number, S, _), number(Number).
 
 % Just eat progs, returns, bases, etc. We want what's inside.
 ev(prog(return(A)), N, Ein, Eout) :- ev(A, N, Ein, Eout).
@@ -27,7 +28,7 @@ ev(factor(T), N, Ein, Eout) :- ev(T, N, Ein, Eout).
 % Function declaration. Scopeout will contain an extra definition for function
 ev(func(id(Iname), id(Iarg), Prog), _, Scopein, Scopeout) :-
     \+ get_fscope(Iname, Scopein, _), % Iname isn't defined in our fscope yet
-    put_fscope(Iname, Scopein, tup(Scopein, Iarg, Prog), Scopeout).
+    put_fscope(Iname, Scopein, tup(Argid, Scopein, Prog), Scopeout). % TODO XXX we might want to copy Scopein to the tup()
 
 ev(fcall(Iname, B), N, Scopein, Scopeout) :-
     ev(B, N1, Scopein, _), % Base can't change scope
@@ -60,16 +61,24 @@ ev(id(I), N, Ein, Ein) :- get_vscope(I, Ein, assigned(N)).
 
 get_fscope(Key, Scopein, Value) :-
     scope(_, Fscope, Staticscope, Parent) = Scopein,
-    Staticscope.get(Key),
+    Staticscope.get(Key) = _,
     ((Fscope.get(Key) = Value, !) ; get_fscope(Key, Parent, Value)).
 
 get_vscope(Key, Scopein, Value) :-
     scope(Vscope, _, Staticscope, Parent) = Scopein,
-    Staticscope.get(Key),
-    ((Vscope.get(Key) = Value, !) ; get_fscope(Key, Parent, Value)).
+    Staticscope.get(Key) = _,
+    ((Vscope.get(Key) = Value, !) ; get_vscope(Key, Parent, Value)).
 
-put_fscope(Key, scope(Vscope, Fscope, S, P), Value, scope(Vscope.put(Key, Value), Fscope, S, P)).
-put_vscope(Key, scope(Vscope, Fscope, S, P), Value, scope(Vscope, Fscope.put(Key, Value), S, P)).
+put_vscope(Key, scope(Vscope, Fscope, S, P), Value, scope(Vscope.put(Key, Value), Fscope, S.put(Key, _), P)).
+
+% Adds Key:Value to current scope of functions
+% +Key, +Scopein, +Value, -Scopeout
+put_fscope(
+    Key,
+    scope(Vscope, Fscope, S, P),
+    Value,
+    scope(Vscope, Fscope.put(Key, Value), S.put(Key, _), P)
+).
 
 % scope(Vscope, Fscope, StaticScope, Parent).
 %
