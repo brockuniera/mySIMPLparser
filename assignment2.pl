@@ -14,8 +14,12 @@ i(T, N) :- interpret(T, N).
 % +Ein  The scope before evaluating AST.
 % -Eout The scope after evaluating AST.
 
+empty_scope(S) :- S = scope(_{}, _{}, _{}, []).
+addparent_scope(Parent, scope(A, B, C, _), scope(A, B, C, Parent)).
+addstatic_scope(Staticscope, scope(A, B, _, D), scope(A, B, Staticscope, D)).
+
 evaluate(AST, Number) :- e2(AST, Number, _).
-e2(AST, Number, S)    :- S = scope(_{}, _{}, _{}, []), ev(AST, Number, S, _), number(Number).
+e2(AST, Number, V)    :- empty_scope(S), ev(AST, Number, S, V), number(Number).
 
 % Just eat progs, returns, bases, etc. We want what's inside.
 ev(prog(return(A)), N, Ein, Eout) :- ev(A, N, Ein, Eout).
@@ -26,17 +30,21 @@ ev(term(T), N, Ein, Eout) :- ev(T, N, Ein, Eout).
 ev(factor(T), N, Ein, Eout) :- ev(T, N, Ein, Eout).
 
 % Function declaration. Scopeout will contain an extra definition for function
-ev(func(id(Iname), id(Iarg), Prog), _, Scopein, Scopeout) :-
+ev(func(id(Iname), id(Argid), Prog), _, Scopein, Scopeout) :-
     \+ get_fscope(Iname, Scopein, _), % Iname isn't defined in our fscope yet
-    put_fscope(Iname, Scopein, tup(Argid, Scopein, Prog), Scopeout). % TODO XXX we might want to copy Scopein to the tup()
+    Scopein = scope(_, _, Staticscope, _),
+    put_fscope(Iname, Scopein, tup(Argid, Staticscope, Prog), Scopeout). % TODO XXX we might want to copy Scopein to the tup()
 
-ev(fcall(Iname, B), N, Scopein, Scopeout) :-
-    ev(B, N1, Scopein, _), % Base can't change scope
+ev(fcall(id(Iname), B), N, Scopein, Scopeout) :-
+    ev(B, Num, Scopein, _), % Base can't change scope
     scope(_, Fscope, _, _) = Scopein, % Look up our function...
     tup(Argid, Staticscope, Progrn) = Fscope.Iname, % Get information from it
 
-    % Evaulate Progrn, storing result in N, and with a new scope
-    ev(Progrn, N, scope(_{}.put(Argid, N1), _{}, Staticscope.put(_{}.put(Argid, N1)), Scopein), scope(_, _, _, Scopeout)).
+    empty_scope(NS),
+    addparent_scope(Scopein, NS, NS1),
+    addstatic_scope(Staticscope, NS1, NS2),
+    put_vscope(Argid, NS2, assigned(Num), NS3),
+    ev(Progrn, N, NS3, scope(_, _, _, Scopeout)).
 
 
 % Terms
