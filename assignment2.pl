@@ -15,8 +15,11 @@ i(T, N) :- interpret(T, N).
 % -Eout The scope after evaluating AST.
 
 empty_scope(S) :- S = scope(_{}, _{}, _{}, []).
-addparent_scope(Parent, scope(A, B, C, _), scope(A, B, C, Parent)).
-addstatic_scope(Staticscope, scope(A, B, _, D), scope(A, B, Staticscope, D)).
+
+% +Scopein  Current scope
+% -Scopeout New scope, with Scopein as a parent
+new_scope(Scopein, scope(_{}, _{}, SS, Scopein)) :-
+    Scopein = scope(_, _, Staticscope, _), copy_term(Staticscope, SS).
 
 evaluate(AST, Number) :- e2(AST, Number, _).
 e2(AST, Number, V)    :- empty_scope(S), ev(AST, Number, S, V), number(Number).
@@ -28,24 +31,55 @@ ev(base(I), N, Ein, Eout) :- ev(I, N, Ein, Eout).
 ev(expr(T), N, Ein, Eout) :- ev(T, N, Ein, Eout).
 ev(term(T), N, Ein, Eout) :- ev(T, N, Ein, Eout).
 ev(factor(T), N, Ein, Eout) :- ev(T, N, Ein, Eout).
+ev(stmt(S), N, Ein, Eout) :- ev(S, N, Ein, Eout).
 
 % Function declaration. Scopeout will contain an extra definition for function
 ev(func(id(Iname), id(Argid), Prog), _, Scopein, Scopeout) :-
-    \+ get_fscope(Iname, Scopein, _), % Iname isn't defined in our fscope yet
+    \+ get_fscope(Iname, Scopein, _), % Iname can't be defined in our fscope yet
     Scopein = scope(_, _, Staticscope, _),
-    put_fscope(Iname, Scopein, tup(Argid, Staticscope, Prog), Scopeout). % TODO XXX we might want to copy Scopein to the tup()
 
+    copy_term(Staticscope, SS),
+    put_fscope(Iname, Scopein, tup(Argid, SS, Prog), Scopeout).
+
+% Function call. Makes a new scope and evals the stored program.
 ev(fcall(id(Iname), B), N, Scopein, Scopeout) :-
-    ev(B, Num, Scopein, _), % Base can't change scope
-    scope(_, Fscope, _, _) = Scopein, % Look up our function...
+    ev(B, Num, Scopein, _), % Base can't change scope, so don't save output scope
+
+    scope(_, Fscope, _, _) = Scopein, % Find our functions
     tup(Argid, Staticscope, Progrn) = Fscope.Iname, % Get information from it
 
-    empty_scope(NS),
-    addparent_scope(Scopein, NS, NS1),
-    addstatic_scope(Staticscope, NS1, NS2),
-    put_vscope(Argid, NS2, assigned(Num), NS3),
-    ev(Progrn, N, NS3, scope(_, _, _, Scopeout)).
+    copy_term(Staticscope, SS),
+    put_vscope(Argid, scope(_{}, _{}, SS, Scopein), assigned(Num), NewScope),
+    ev(Progrn, N, NewScope, scope(_, _, _, Scopeout)).
 
+% If statement
+ev(if(Cond, St, Sf), _, Ein, Eout) :-
+    new_scope(Ein, Newscope1),
+    ev(Cond, NC, Newscope1, scope(_, _, _, E1)),
+
+    new_scope(E1, Newscope2),
+    (
+        NC -> 
+        ev(St, _, Newscope2, scope(_, _, _, Eout)) ;
+        ev(Sf, _, Newscope2, scope(_, _, _, Eout))
+    ).
+
+% Loops
+% TODO Scoping
+ev(while(Cond, _), _, Ein, Eout) :- ev(Cond, NC, Ein, Eout), \+ NC.
+ev(while(Cond, S), _, Ein, Eout) :- ev(Cond, NC, Ein, E1), NC, (ev(S, _, E1, Eout), ev(while(Cond, S), _, E1, Eout)).
+
+% Statement sequences
+ev(stmntseq(S), _, Ein, Eout) :- ev(S, _, Ein, Eout).
+ev(stmntseq(S, Snext), _, Ein, Eout) :- ev(S, _, Ein, E1), ev(Snext, _, E1, Eout).
+
+% Comparisons
+ev(cond(eq, B, B1), N, Ein, Eout) :- ev(B, N1, Ein, M1), ev(B1, N2, M1, Eout), N = (N1 =:= N2).
+ev(cond(lt, B, B1), N, Ein, Eout) :- ev(B, N1, Ein, M1), ev(B1, N2, M1, Eout), N = (N1 < N2).
+ev(cond(gt, B, B1), N, Ein, Eout) :- ev(B, N1, Ein, M1), ev(B1, N2, M1, Eout), N = (N1 > N2).
+ev(cond(le, B, B1), N, Ein, Eout) :- ev(B, N1, Ein, M1), ev(B1, N2, M1, Eout), N = (N1 =< N2).
+ev(cond(ge, B, B1), N, Ein, Eout) :- ev(B, N1, Ein, M1), ev(B1, N2, M1, Eout), N = (N1 >= N2).
+ev(cond(ne, B, B1), N, Ein, Eout) :- ev(B, N1, Ein, M1), ev(B1, N2, M1, Eout), N = (N1 =\= N2).
 
 % Terms
 ev(term(times, T, T1), N, Ein, Eout) :- ev(T, N1, Ein, M1), ev(T1, N2, M1, Eout), N is N1 * N2.
@@ -77,6 +111,9 @@ get_vscope(Key, Scopein, Value) :-
     Staticscope.get(Key) = _,
     ((Vscope.get(Key) = Value, !) ; get_vscope(Key, Parent, Value)).
 
+
+
+% TODO If Key is NOT NEW (ie in Staticscope), it should find and update Key to Value, not place it in lowest level scope.
 put_vscope(Key, scope(Vscope, Fscope, S, P), Value, scope(Vscope.put(Key, Value), Fscope, S.put(Key, _), P)).
 
 % Adds Key:Value to current scope of functions
@@ -131,7 +168,7 @@ conditional(if(Cond, St, Sf)) -->
 statementSeq(stmntseq(S)) --> statement(S), [.].
 statementSeq(stmntseq(S, Snext)) --> statement(S), [';'], statementSeq(Snext).
 
-condition(cond(LHS, Op, RHS)) --> base(LHS), comp(Op), base(RHS).
+condition(cond(Op, LHS, RHS)) --> base(LHS), comp(Op), base(RHS).
 
 base(base(I)) --> id(I).
 base(base(N)) --> num(N).
