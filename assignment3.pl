@@ -36,10 +36,9 @@ ev(stmt(S), N, Ein, Eout) :- ev(S, N, Ein, Eout).
 
 % Function declaration. Scopeout will contain an extra definition for function
 ev(func(id(Iname), id(Argid), Prog), _, Scopein, Scopeout) :-
-    \+ get_fscope(Iname, Scopein, _), % Iname can't be defined in our fscope yet
-
+    \+ (Scopein.fscope.get(Iname) = _),
     copy_term(Scopein.staticscope, SS),
-    put_fscope(Iname, Scopein, tup(Argid, SS, Prog), Scopeout).
+    Scopeout = Scopein.put(fscope/Iname, tup(Argid, SS, Prog)).put(staticscope/Iname, _).
 
 % Function call. Makes a new scope and evals the stored program.
 ev(fcall(id(Iname), B), N, Scopein, Scopeout) :-
@@ -216,9 +215,10 @@ comp(ge) --> ['>='].
 comp(ne) --> ['!='].
 
 % < id > definition
-id(id(I)) --> [I], { \+ member(I, [function, return, 'var', if, then, else, endif, while, do, done]), atom_codes(I, S), alphaword(S) }.
+id(id(I)) --> [I], { \+ member(I, [function, return, 'var', if, then, else, endif, while, do, done]), atom_codes(I, S), aword(S) }.
+aword([H|T]) :- char_type(H, csymf), alphaword(T).
 alphaword([]).
-alphaword([H|T]) :- char_type(H, csymf), alphaword(T).
+alphaword([H|T]) :- char_type(H, csym), alphaword(T).
 
 % < number > definition
 num(num(N)) --> [X], {catch((atom_codes(X, S), number_codes(N, S)), _, (fail))}.
