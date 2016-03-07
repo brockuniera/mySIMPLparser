@@ -60,11 +60,14 @@ ev(if(Cond, St, Sf), _, Ein, Eout) :-
     new_scope(Ein, Newscope1),
     ev(Cond, NC, Newscope1, _),
 
+    write_term(Ein, [nl(true)]),
+    write_term(NC, [nl(true)]),
     (
         NC -> 
         ev(St, _, Newscope1, E1) ;
         ev(Sf, _, Newscope1, E1)
     ),
+    write_term(E1, [nl(true)]),
     Eout = E1.parent.
 
 % Loops
@@ -114,36 +117,41 @@ get_vscope(Key, Scopein, Value) :-
     ((Scopein.vscope.get(Key) = Value, !) ; get_vscope(Key, Scopein.parent, Value)).
 
 
-% TODO If Key is NOT NEW (ie in Staticscope), it should find and update Key to Value, not place it in lowest level scope.
+% Key doesn't exist
 put_vscope(Key, Sin, V, Sout) :-
-    % New key
-    %\+ Sin.staticscope.get(Key),
     \+ (Sin.staticscope.get(Key) = _),
-    % Add key to lowest level
     Sout = Sin.put(vscope/Key, V).put(staticscope/Key, _).
 
+% Key exists at this level
 put_vscope(Key, Sin, V, Sout) :-
-    % Key exists...
     Sin.staticscope.get(Key) = _,
-    % ...and we have the entry!
     Sin.vscope.get(Key) = _,
     Sout = Sin.put(vscope/Key, V).put(staticscope/Key, _).
 
-% Adds Key:Value to current scope of functions
-% +Key, +Scopein, +Value, -Scopeout
+% Key exists above this level
+put_vscope(Key, Sin, V, Sout) :-
+    Sin.staticscope.get(Key) = _,
+    \+ (Sin.vscope.get(Key) = _),
+    put_vscope(Key, Sin.parent, V, Out),
+    Sout = Sin.put(parent, Out).
+
+% Key doesn't exist
 put_fscope(Key, Sin, V, Sout) :-
-    % New key
-    %\+ Sin.staticscope.get(Key),
     \+ (Sin.staticscope.get(Key) = _),
-    % Add key to lowest level
     Sout = Sin.put(fscope/Key, V).put(staticscope/Key, _).
 
+% Key exists at this level
 put_fscope(Key, Sin, V, Sout) :-
-    % Key exists...
     Sin.staticscope.get(Key) = _,
-    % ...and we have the entry!
     Sin.fscope.get(Key) = _,
     Sout = Sin.put(fscope/Key, V).put(staticscope/Key, _).
+
+% Key exists above this level
+put_fscope(Key, Sin, V, Sout) :-
+    Sin.staticscope.get(Key) = _,
+    \+ (Sin.fscope.get(Key) = _),
+    put_fscope(Key, Sin.parent, V, Out),
+    Sout = Sin.put(parent, Out).
 
 %
 % Parser
