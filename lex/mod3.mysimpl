@@ -1,0 +1,7 @@
+function f(y){
+    return 88.
+};
+function g(z){
+    return f(1).
+};
+return g(0).

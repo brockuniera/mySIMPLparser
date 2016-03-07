@@ -1,0 +1,9 @@
+var mod_op ;
+function mod ( a ) {
+    while ( a > mod_op ) do
+        a := ( a - mod_op ) .
+    done ;
+    return a .
+} ;
+mod_op := 100 ;
+return mod ( 8745 ) .

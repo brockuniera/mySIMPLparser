@@ -1,0 +1,17 @@
+function newton_sqrt ( x ) {
+    var next ;
+    next := x ;
+    var this ;
+    this := x ;
+    var diff ;
+    diff := 1.0 ;
+    while ( diff > 0.01 ) do
+        var tmp ;
+        tmp := ( this - ( ( this * this - x ) / ( 2.0 * this ) ) ) ;
+        this := next ;
+        next := tmp ;
+        diff := ( next * next - x ) .
+    done ;
+    return next .
+} ;
+return newton_sqrt ( 16.0 ) .

@@ -5,14 +5,6 @@ interpret(TokenList, Number) :- parse(TokenList, AST), evaluate(AST, Number).
 
 % short versions of parse/2 and evaluate/2
 p(T, A) :- parse(T, A).
-i(T, N) :- interpret(T, N).
-
-% ev/4
-% +AST  A valid abstract syntax tree from parse.
-% -N    A number, the resulting value from evaluating this piece of the AST.
-%       ie return(num(3)) will have N is 3.
-% +Ein  The scope before evaluating AST.
-% -Eout The scope after evaluating AST.
 
 empty_scope(_{vscope:_{}, fscope:_{}, staticscope:_{}, parent:[]}).
 
@@ -25,6 +17,13 @@ new_scope(Scopein, Scopeout) :-
 
 evaluate(AST, Number) :- e2(AST, Number, _).
 e2(AST, Number, V)    :- empty_scope(S), ev(AST, Number, S, V), number(Number).
+
+% ev/4
+% +AST  A valid abstract syntax tree from parse.
+% -N    A number, the resulting value from evaluating this piece of the AST.
+%       ie return(num(3)) will have N is 3.
+% +Ein  The scope before evaluating AST.
+% -Eout The scope after evaluating AST.
 
 % Just eat progs, returns, bases, etc. We want what's inside.
 ev(prog(return(A)), N, Ein, Eout) :- ev(A, N, Ein, Eout).
@@ -46,7 +45,7 @@ ev(func(id(Iname), id(Argid), Prog), _, Scopein, Scopeout) :-
 ev(fcall(id(Iname), B), N, Scopein, Scopeout) :-
     ev(B, Num, Scopein, _), % Base can't change scope, so don't save output scope
 
-    tup(Argid, Staticscope, Progrn) = Scopein.fscope.Iname, % Get information from it
+    get_fscope(Iname, Scopein, tup(Argid, Staticscope, Progrn)), % Get information from it
 
     new_scope(Scopein, NewScope),
     put_vscope(Argid, NewScope.put(staticscope, Staticscope), assigned(Num), NS1),
@@ -217,7 +216,7 @@ comp(ne) --> ['!='].
 % < id > definition
 id(id(I)) --> [I], { \+ member(I, [function, return, 'var', if, then, else, endif, while, do, done]), atom_codes(I, S), alphaword(S) }.
 alphaword([]).
-alphaword([H|T]) :- char_type(H, alpha), alphaword(T).
+alphaword([H|T]) :- char_type(H, csymf), alphaword(T).
 
 % < number > definition
 num(num(N)) --> [X], {catch((atom_codes(X, S), number_codes(N, S)), _, (fail))}.

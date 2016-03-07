@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <ctype.h>
 
+int yylex();
+
 int main()          /* Calls yylex repeatedly to test */
   { 
     int res, done;
@@ -10,6 +12,6 @@ int main()          /* Calls yylex repeatedly to test */
       { res = yylex();    /* yylex is the entry point to the lex program */
         if (res == 0) done = 1;
       }
-    printf("]\n");
+    printf("\n");
     return 0;
   }
