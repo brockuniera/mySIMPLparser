@@ -1,0 +1,7 @@
+var a ;
+a := 5 ;
+function f  ( y ) {
+    var a ;
+    return  ( y * a ) .
+} ;
+return f  ( 3 ) .
