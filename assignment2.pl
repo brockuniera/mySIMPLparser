@@ -14,12 +14,14 @@ i(T, N) :- interpret(T, N).
 % +Ein  The scope before evaluating AST.
 % -Eout The scope after evaluating AST.
 
-empty_scope(S) :- S = scope(_{}, _{}, _{}, []).
+empty_scope(_{vscope:_{}, fscope:_{}, staticscope:_{}, parent:[]}).
 
 % +Scopein  Current scope
 % -Scopeout New scope, with Scopein as a parent
-new_scope(Scopein, scope(_{}, _{}, SS, Scopein)) :-
-    Scopein = scope(_, _, Staticscope, _), copy_term(Staticscope, SS).
+new_scope(Scopein, Scopeout) :-
+    copy_term(Scopein.staticscope, SS),
+    empty_scope(NS),
+    Scopeout = NS.put(staticscope, SS).put(parent, Scopein).
 
 evaluate(AST, Number) :- e2(AST, Number, _).
 e2(AST, Number, V)    :- empty_scope(S), ev(AST, Number, S, V), number(Number).
@@ -36,33 +38,34 @@ ev(stmt(S), N, Ein, Eout) :- ev(S, N, Ein, Eout).
 % Function declaration. Scopeout will contain an extra definition for function
 ev(func(id(Iname), id(Argid), Prog), _, Scopein, Scopeout) :-
     \+ get_fscope(Iname, Scopein, _), % Iname can't be defined in our fscope yet
-    Scopein = scope(_, _, Staticscope, _),
 
-    copy_term(Staticscope, SS),
+    copy_term(Scopein.staticscope, SS),
     put_fscope(Iname, Scopein, tup(Argid, SS, Prog), Scopeout).
 
 % Function call. Makes a new scope and evals the stored program.
 ev(fcall(id(Iname), B), N, Scopein, Scopeout) :-
     ev(B, Num, Scopein, _), % Base can't change scope, so don't save output scope
 
-    scope(_, Fscope, _, _) = Scopein, % Find our functions
-    tup(Argid, Staticscope, Progrn) = Fscope.Iname, % Get information from it
+    tup(Argid, Staticscope, Progrn) = Scopein.fscope.Iname, % Get information from it
 
-    copy_term(Staticscope, SS),
-    put_vscope(Argid, scope(_{}, _{}, SS, Scopein), assigned(Num), NewScope),
-    ev(Progrn, N, NewScope, scope(_, _, _, Scopeout)).
+    new_scope(Scopein, NewScope),
+    put_vscope(Argid, NewScope.put(staticscope, Staticscope), assigned(Num), NS1),
+
+    ev(Progrn, N, NS1, NS2),
+
+    Scopeout = NS2.parent.
 
 % If statement
 ev(if(Cond, St, Sf), _, Ein, Eout) :-
     new_scope(Ein, Newscope1),
-    ev(Cond, NC, Newscope1, scope(_, _, _, E1)),
+    ev(Cond, NC, Newscope1, _),
 
-    new_scope(E1, Newscope2),
     (
         NC -> 
-        ev(St, _, Newscope2, scope(_, _, _, Eout)) ;
-        ev(Sf, _, Newscope2, scope(_, _, _, Eout))
-    ).
+        ev(St, _, Newscope1, E1) ;
+        ev(Sf, _, Newscope1, E1)
+    ),
+    Eout = E1.parent.
 
 % Loops
 % TODO Scoping
@@ -102,43 +105,45 @@ ev(assn(id(I), base(B)), _, Ein, Eout) :- ev(B, N, Ein, _), get_vscope(I, Ein, _
 ev(id(I), N, Ein, Ein) :- get_vscope(I, Ein, assigned(N)).
 
 get_fscope(Key, Scopein, Value) :-
-    scope(_, Fscope, Staticscope, Parent) = Scopein,
-    Staticscope.get(Key) = _,
-    ((Fscope.get(Key) = Value, !) ; get_fscope(Key, Parent, Value)).
+    Scopein.staticscope.get(Key) = _,
+    ((Scopein.fscope.get(Key) = Value, !) ; get_fscope(Key, Scopein.parent, Value)).
+
 
 get_vscope(Key, Scopein, Value) :-
-    scope(Vscope, _, Staticscope, Parent) = Scopein,
-    Staticscope.get(Key) = _,
-    ((Vscope.get(Key) = Value, !) ; get_vscope(Key, Parent, Value)).
-
+    Scopein.staticscope.get(Key) = _,
+    ((Scopein.vscope.get(Key) = Value, !) ; get_vscope(Key, Scopein.parent, Value)).
 
 
 % TODO If Key is NOT NEW (ie in Staticscope), it should find and update Key to Value, not place it in lowest level scope.
-put_vscope(Key, scope(Vscope, Fscope, S, P), Value, scope(Vscope.put(Key, Value), Fscope, S.put(Key, _), P)).
+put_vscope(Key, Sin, V, Sout) :-
+    % New key
+    %\+ Sin.staticscope.get(Key),
+    \+ (Sin.staticscope.get(Key) = _),
+    % Add key to lowest level
+    Sout = Sin.put(vscope/Key, V).put(staticscope/Key, _).
+
+put_vscope(Key, Sin, V, Sout) :-
+    % Key exists...
+    Sin.staticscope.get(Key) = _,
+    % ...and we have the entry!
+    Sin.vscope.get(Key) = _,
+    Sout = Sin.put(vscope/Key, V).put(staticscope/Key, _).
 
 % Adds Key:Value to current scope of functions
 % +Key, +Scopein, +Value, -Scopeout
-put_fscope(
-    Key,
-    scope(Vscope, Fscope, S, P),
-    Value,
-    scope(Vscope, Fscope.put(Key, Value), S.put(Key, _), P)
-).
+put_fscope(Key, Sin, V, Sout) :-
+    % New key
+    %\+ Sin.staticscope.get(Key),
+    \+ (Sin.staticscope.get(Key) = _),
+    % Add key to lowest level
+    Sout = Sin.put(fscope/Key, V).put(staticscope/Key, _).
 
-% scope(Vscope, Fscope, StaticScope, Parent).
-%
-% Vscope and Fscope are just dicts, representing their respective namespaces.
-% StaticScope is all the variables we've seen up to this point, in the current scope.
-% TODO It should also contain func defs
-%
-% When a function is declared, StaticScope is saved with the function.
-% scope({}, {f:tup(Argid, StaticScope, Progrn)}, StaticScope, Parent).
-%
-% When a function is called, a new scope is created:
-% scope({Argid:<callvalue>}, {}, StaticScope.put(_{Argid:<callvalue>}), Parent).
-%
-% The scope of the function is the saved StaticScope UNION {Argid:<callvalue>}
-%
+put_fscope(Key, Sin, V, Sout) :-
+    % Key exists...
+    Sin.staticscope.get(Key) = _,
+    % ...and we have the entry!
+    Sin.fscope.get(Key) = _,
+    Sout = Sin.put(fscope/Key, V).put(staticscope/Key, _).
 
 %
 % Parser
