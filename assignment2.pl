@@ -57,23 +57,24 @@ ev(fcall(id(Iname), B), N, Scopein, Scopeout) :-
 
 % If statement
 ev(if(Cond, St, Sf), _, Ein, Eout) :-
-    new_scope(Ein, Newscope1),
-    ev(Cond, NC, Newscope1, _),
-
-    write_term(Ein, [nl(true)]),
-    write_term(NC, [nl(true)]),
-    (
-        NC -> 
-        ev(St, _, Newscope1, E1) ;
-        ev(Sf, _, Newscope1, E1)
+    new_scope(Ein, Newscope),
+    ev(Cond, NC, Newscope, _),
+    ( NC -> 
+        ev(St, _, Newscope, E1) ;
+        ev(Sf, _, Newscope, E1)
     ),
-    write_term(E1, [nl(true)]),
     Eout = E1.parent.
 
 % Loops
 % TODO Scoping
 ev(while(Cond, _), _, Ein, Eout) :- ev(Cond, NC, Ein, Eout), \+ NC.
-ev(while(Cond, S), _, Ein, Eout) :- ev(Cond, NC, Ein, E1), NC, (ev(S, _, E1, Eout), ev(while(Cond, S), _, E1, Eout)).
+
+ev(while(Cond, St), _, Ein, Eout) :-
+    new_scope(Ein, Newscope),
+    ev(Cond, NC, Newscope, _),
+    NC,
+    ev(St, _, Newscope, E1),
+    ev(while(Cond, St), _, E1.parent, Eout).
 
 % Statement sequences
 ev(stmntseq(S), _, Ein, Eout) :- ev(S, _, Ein, Eout).
@@ -111,11 +112,9 @@ get_fscope(Key, Scopein, Value) :-
     Scopein.staticscope.get(Key) = _,
     ((Scopein.fscope.get(Key) = Value, !) ; get_fscope(Key, Scopein.parent, Value)).
 
-
 get_vscope(Key, Scopein, Value) :-
     Scopein.staticscope.get(Key) = _,
     ((Scopein.vscope.get(Key) = Value, !) ; get_vscope(Key, Scopein.parent, Value)).
-
 
 % Key doesn't exist
 put_vscope(Key, Sin, V, Sout) :-
@@ -216,7 +215,7 @@ comp(ge) --> ['>='].
 comp(ne) --> ['!='].
 
 % < id > definition
-id(id(I)) --> [I], { \+ member(I, [return, 'var', function]), atom_codes(I, S), alphaword(S) }.
+id(id(I)) --> [I], { \+ member(I, [function, return, 'var', if, then, else, endif, while, do, done]), atom_codes(I, S), alphaword(S) }.
 alphaword([]).
 alphaword([H|T]) :- char_type(H, alpha), alphaword(T).
 
