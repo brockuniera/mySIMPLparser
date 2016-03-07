@@ -1,0 +1,9 @@
+var x;
+x := 3;
+function f(x){
+    function g(y){
+        return y.
+    };
+    return g(1).
+};
+return f(10).

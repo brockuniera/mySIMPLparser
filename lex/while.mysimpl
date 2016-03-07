@@ -1,0 +1,11 @@
+var x;
+x := 2;
+var o;
+o := 0;
+while(x > 0) do
+    var y;
+    y := 3;
+    o := (o + y);
+    x := (x - 1).
+done;
+return o.

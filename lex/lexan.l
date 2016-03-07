@@ -1,0 +1,33 @@
+%{
+int yywrap();
+int myf();
+
+int yylval;
+%}
+
+delim    [ \t\n]
+ws       {delim}+
+letter   [A-Za-z]
+digit    [0-9]
+id       {letter}+
+number   {digit}+
+specials      [\{\}\(\);\<\>\+\-\*\/]
+
+%%
+
+{ws}      { /* no action and no return */ }
+
+{specials}     {return myf();}
+{id}     {return myf();}
+{number}     {return myf();}
+":="     {return myf();}
+"."     {return myf();}
+
+%%
+
+int myf(){
+    printf("'%s', ", yytext);
+    return 1;
+}
+
+int yywrap(){return 1;}
