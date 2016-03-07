@@ -15,4 +15,4 @@ function g  ( x ) {
     mod_op := 10 ;
     return mod  ( 15 ) . 
 } ;
-return 1.
+return mod(3).

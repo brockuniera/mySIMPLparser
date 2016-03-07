@@ -43,11 +43,11 @@ ev(func(id(Iname), id(Argid), Prog), _, Scopein, Scopeout) :-
 
 % Function call. Makes a new scope and evals the stored program.
 ev(fcall(id(Iname), B), N, Scopein, Scopeout) :-
-    ev(B, Num, Scopein, _), % Base can't change scope, so don't save output scope
+    ev(B, Num, Scopein, S1),
 
-    get_fscope(Iname, Scopein, tup(Argid, Staticscope, Progrn)), % Get information from it
+    get_fscope(Iname, S1, tup(Argid, Staticscope, Progrn)), % Get information from it
 
-    new_scope(Scopein, NewScope),
+    new_scope(S1, NewScope),
     put_vscope(Argid, NewScope.put(staticscope, Staticscope), assigned(Num), NS1),
 
     ev(Progrn, N, NS1, NS2),
@@ -57,10 +57,10 @@ ev(fcall(id(Iname), B), N, Scopein, Scopeout) :-
 % If statement
 ev(if(Cond, St, Sf), _, Ein, Eout) :-
     new_scope(Ein, Newscope),
-    ev(Cond, NC, Newscope, _),
+    ev(Cond, NC, Newscope, NS1),
     ( NC -> 
-        ev(St, _, Newscope, E1) ;
-        ev(Sf, _, Newscope, E1)
+        ev(St, _, NS1, E1) ;
+        ev(Sf, _, NS1, E1)
     ),
     Eout = E1.parent.
 
@@ -70,9 +70,9 @@ ev(while(Cond, _), _, Ein, Eout) :- ev(Cond, NC, Ein, Eout), \+ NC.
 
 ev(while(Cond, St), _, Ein, Eout) :-
     new_scope(Ein, Newscope),
-    ev(Cond, NC, Newscope, _),
+    ev(Cond, NC, Newscope, NS1),
     NC,
-    ev(St, _, Newscope, E1),
+    ev(St, _, NS1, E1),
     ev(while(Cond, St), _, E1.parent, Eout).
 
 % Statement sequences
@@ -98,14 +98,16 @@ ev(expr(minus, T, T1), N, Ein, Eout) :- ev(T, N1, Ein, M1), ev(T1, N2, M1, Eout)
 % Numbers allowed.
 ev(num(N), N, M, M).
 
-% Declarations. id cannot have existed before, and now it does. Eout != Ein.
-ev(declr(id(I)), _, Ein, Eout) :- \+ get_vscope(I, Ein, _), put_vscope(I, Ein, unassigned, Eout).
+% Declarations. id cannot have existed before at this scope level, and now it does. Eout != Ein.
+ev(declr(id(I)), _, Ein, Eout) :-
+    \+ (Ein.vscope.get(I) = _),
+    Eout = Ein.put(staticscope/I, _).put(vscope/I, unassigned).
 
-% Assignments are valid when LHS id is in Ein, and base is valid. Eout != Ein.
-ev(assn(id(I), base(B)), _, Ein, Eout) :- ev(B, N, Ein, _), get_vscope(I, Ein, _), put_vscope(I, Ein, assigned(N), Eout).
+% Assignments are valid when id I is in Ein, and base is valid.
+ev(assn(id(I), base(B)), _, Ein, Eout) :- ev(B, N, Ein, E1), get_vscope(I, E1, _), put_vscope(I, E1, assigned(N), Eout).
 
 % Reading an id. The id has to exist and be assigned in Ein.
-ev(id(I), N, Ein, Ein) :- get_vscope(I, Ein, assigned(N)).
+ev(id(I), N, Ein, Ein) :- get_vscope(I, Ein, Num), !, assigned(N) = Num.
 
 get_fscope(Key, Scopein, Value) :-
     Scopein.staticscope.get(Key) = _,

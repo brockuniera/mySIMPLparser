@@ -1,7 +1,19 @@
-function f(y){
-    return 88.
-};
-function g(z){
-    return f(1).
-};
-return g(0).
+var mod_op ;
+function mod  ( a ) {
+    while  ( a > mod_op ) do
+        a :=  ( a - mod_op ) .
+    done ;
+    return a . 
+} ;
+mod_op := 100 ;
+function f  ( x ) {
+    mod_op := 10 ;
+    return mod  ( 15 ) . 
+} ;
+function g  ( x ) {
+    var mod_op ;
+    mod_op := 10 ;
+    return mod  ( 15 ) . 
+} ;
+return g(1).
+
