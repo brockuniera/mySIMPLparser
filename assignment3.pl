@@ -48,7 +48,7 @@ ev(fcall(id(Iname), B), N, Scopein, Scopeout) :-
     new_scope(S1, NewScope),
     copy_term(Staticscope, SS),
 
-    ev(Progrn, N, NewScope.put(staticscope, SS).put(vscope/Argid, assigned(Num)), NS1),
+    ev(Progrn, N, NewScope.put(staticscope, SS.put(Argid, _)).put(vscope/Argid, assigned(Num)), NS1),
 
     Scopeout = NS1.parent.
 
