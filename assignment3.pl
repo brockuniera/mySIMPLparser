@@ -38,7 +38,7 @@ ev(stmt(S), N, Ein, Eout) :- ev(S, N, Ein, Eout).
 ev(func(id(Iname), id(Argid), Prog), _, Scopein, Scopeout) :-
     \+ (Scopein.fscope.get(Iname) = _),
     copy_term(Scopein.staticscope, SS),
-    Scopeout = Scopein.put(fscope/Iname, tup(Argid, SS, Prog)).put(staticscope/Iname, _).
+    Scopeout = Scopein.put(fscope/Iname, tup(Argid, SS.put(Iname, _), Prog)).put(staticscope/Iname, _).
 
 % Function call. Makes a new scope and evals the stored program.
 ev(fcall(id(Iname), B), N, Scopein, Scopeout) :-
