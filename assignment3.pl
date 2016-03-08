@@ -43,15 +43,14 @@ ev(func(id(Iname), id(Argid), Prog), _, Scopein, Scopeout) :-
 % Function call. Makes a new scope and evals the stored program.
 ev(fcall(id(Iname), B), N, Scopein, Scopeout) :-
     ev(B, Num, Scopein, S1),
-
     get_fscope(Iname, S1, tup(Argid, Staticscope, Progrn)), % Get information from it
 
     new_scope(S1, NewScope),
-    put_vscope(Argid, NewScope.put(staticscope, Staticscope), assigned(Num), NS1),
+    copy_term(Staticscope, SS),
 
-    ev(Progrn, N, NS1, NS2),
+    ev(Progrn, N, NewScope.put(staticscope, SS).put(vscope/Argid, assigned(Num)), NS1),
 
-    Scopeout = NS2.parent.
+    Scopeout = NS1.parent.
 
 % If statement
 ev(if(Cond, St, Sf), _, Ein, Eout) :-
@@ -64,15 +63,14 @@ ev(if(Cond, St, Sf), _, Ein, Eout) :-
     Eout = E1.parent.
 
 % Loops
-% TODO Scoping
 ev(while(Cond, _), _, Ein, Eout) :- ev(Cond, NC, Ein, Eout), \+ NC.
 
 ev(while(Cond, St), _, Ein, Eout) :-
-    new_scope(Ein, Newscope),
-    ev(Cond, NC, Newscope, NS1),
+    ev(Cond, NC, Ein, E1),
     NC,
-    ev(St, _, NS1, E1),
-    ev(while(Cond, St), _, E1.parent, Eout).
+    new_scope(E1, NS1),
+    ev(St, _, NS1, E2),
+    ev(while(Cond, St), _, E2.parent, Eout).
 
 % Statement sequences
 ev(stmntseq(S), _, Ein, Eout) :- ev(S, _, Ein, Eout).
@@ -133,6 +131,8 @@ put_vscope(Key, Sin, V, Sout) :-
     \+ (Sin.vscope.get(Key) = _),
     put_vscope(Key, Sin.parent, V, Out),
     Sout = Sin.put(parent, Out).
+
+% put_fscope actually never gets used
 
 % Key doesn't exist
 put_fscope(Key, Sin, V, Sout) :-

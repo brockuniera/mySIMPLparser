@@ -9,7 +9,7 @@ delim    [ \t\n]
 ws       {delim}+
 letter   [A-Za-z_]
 digit    [0-9]
-id       {letter}+
+id       {letter}({letter}|{digit})+
 number   {digit}+
 specials      [\{\}\(\);\<\>\+\-\*\/]
 

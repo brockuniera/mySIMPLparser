@@ -1,9 +1,12 @@
 var x ;
-x := 1 ;
-function x  ( x ) {
-    function x  ( x ) {
-        return  ( x + 1 ) .
-    } ;
-   return  ( x  ( x ) + 10 ) .
-} ;
-return x  ( x ) .
+x := 2 ;
+var i ;
+i := 1 ;
+function f (y) {
+    i := (i + 1);
+    return i.
+};
+while  ( f(0) < 4 ) do
+    x :=  ( x * 2 ).
+done ;
+return x .

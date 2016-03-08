@@ -1,6 +1,12 @@
 var x ;
 x := 1 ;
-function x  ( x ) {
-   return x.
+var i ;
+i := 1 ;
+function f  ( x ) {
+    i :=  ( i + 1 ) ;
+    return i .
 } ;
-return x  ( x ) .
+while  ( f  ( i ) < 2 ) do
+    x :=  ( x * x ) .
+done ;
+return x .
